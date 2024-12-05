@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+
 # Array of dependencies
 declare -a PACKAGES=("bash" "curl" "tar" "gzip")
 declare -a SHOULD_INSTALL_PACKAGES
@@ -32,10 +33,10 @@ function check-packages() {
         if ! command -v "$program" >/dev/null 2>&1; then
             log "warning dependency: $program is not installed."
             #push to array. Array with packages for instalation
-            SHOULD_INSTALL_PACKAGES+=($program)
+            SHOULD_INSTALL_PACKAGES+=("$program")
         fi
     done
-    log "packages for installation: ${SHOULD_INSTALL_PACKAGES[@]}"
+    log "packages for installation: ${SHOULD_INSTALL_PACKAGES[*]}"
 }
 
 install_check() {
@@ -50,6 +51,7 @@ install_check() {
 install_dependencies() {
     # Detect the Linux distribution
     if [ -f /etc/os-release ]; then
+        # shellcheck disable=SC1091
         . /etc/os-release
         DISTRO=$ID
     else

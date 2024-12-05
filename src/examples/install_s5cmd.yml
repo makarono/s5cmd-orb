@@ -1,0 +1,21 @@
+description: Easily install and configure the AWS CLI automatically in your jobs or commands.
+usage:
+  version: 2.1
+
+  orbs:
+    s5cmd: circleci/s5cmd@5.1
+
+  jobs:
+    s5cmd-example:
+      executor: s5cmd/default
+      steps:
+        - checkout
+        - s5cmd/setup:
+            profile_name: example
+        - run: echo "Run your code here"
+
+  workflows:
+    s5cmd:
+      jobs:
+        - s5cmd-example:
+            context: aws

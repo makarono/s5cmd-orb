@@ -78,9 +78,9 @@ Uninstall_S5CMD_CLI() {
     echo "Uninstalling ${EXISTING_AWS_VERSION}"
     # shellcheck disable=SC2012
     if [ -L "$S5CMD_CLI_PATH" ]; then
-      5CMD_SYMLINK_PATH=$(ls -l "$S5CMD_CLI_PATH" | sed -e 's/.* -> //')
+      S5CMD_SYMLINK_PATH=$(ls -l "$S5CMD_CLI_PATH" | sed -e 's/.* -> //')
     fi
-    $SUDO rm -rf "$S5CMD_CLI_PATH" "$5CMD_SYMLINK_PATH"
+    $SUDO rm -rf "$S5CMD_CLI_PATH" "$S5CMD_SYMLINK_PATH"
   else
     echo "No s5cmd install found"
   fi
