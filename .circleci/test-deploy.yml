@@ -33,9 +33,6 @@ jobs:
         default: "/usr/local/s5cmd"
         description: |
           Specify the installation directory
-      set_aws_env_vars:
-        type: boolean
-        default: true
     executor: <<parameters.executor>>
     steps:
       - s5cmd-orb/install:
