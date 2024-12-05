@@ -23,8 +23,8 @@ parameters:
             The main aws program in the install directory is symbolically linked to the file aws in the specified path. Defaults to /usr/local/bin
 steps:
     - run:
-        name: Install s5cmd - <<parameters.version>>
-        environment:
+          name: Install s5cmd - <<parameters.version>>
+          environment:
             S5CMD_STR_S5CMD_VERSION: <<parameters.version>>
             S5CMD_BOOL_OVERRIDE: <<parameters.override_installed>>
             S5CMD_EVAL_INSTALL_DIR: <<parameters.install_dir>>
@@ -33,4 +33,4 @@ steps:
             SCRIPT_INSTALL_DEPENDENCY_LINUX: << include(scripts/linux/deps-install-script.sh) >>
             SCRIPT_INSTALL_MACOS: << include(scripts/macos/install.sh) >>
             SCRIPT_UTILS: << include(scripts/utils.sh) >>
-        command: <<include(scripts/install.sh)>>
+          command: <<include(scripts/install.sh)>>
