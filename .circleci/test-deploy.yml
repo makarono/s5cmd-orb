@@ -41,15 +41,8 @@ jobs:
       - s5cmd/install:
           version: <<parameters.version>>
           override_installed: <<parameters.override_installed>>
-          install_dir: <<parameters.install_dir>>
           binary_dir: <<parameters.binary_dir>>
-          role_arn: <<parameters.role_arn>>
-          profile_name: <<parameters.profile_name>>
-          session_duration: <<parameters.session_duration>>
-          role_session_name: <<parameters.role_session_name>>
-          configure_default_region: <<parameters.configure_default_region>>
-          configure_profile_region: <<parameters.configure_profile_region>>
-          region: <<parameters.region>>
+          install_dir: <<parameters.install_dir>>
           set_aws_env_vars: <<parameters.set_aws_env_vars>>
 
 workflows:
