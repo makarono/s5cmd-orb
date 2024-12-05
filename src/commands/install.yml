@@ -1,0 +1,36 @@
+description: "Install the s5cmd if not already installed."
+
+parameters:
+    version:
+        description: Select a specific version of the s5cmd. By default the latest version will be used.
+        default: latest
+        type: string
+    override_installed:
+        type: boolean
+        default: false
+        description: |
+            By default, if the s5cmd is detected on the system, the install will be skipped.
+            Enable this to override the installed version and install your specified version.
+    install_dir:
+        type: string
+        default: /usr/local/s5cmd
+        description: |
+            Specify the installation directory of s5cmd. Defaults to /usr/local/s5cmd
+    binary_dir:
+        type: string
+        default: /usr/local/bin
+        description: |
+            The main aws program in the install directory is symbolically linked to the file aws in the specified path. Defaults to /usr/local/bin
+steps:
+    - run:
+        name: Install s5cmd - <<parameters.version>>
+        environment:
+            S5CMD_STR_S5CMD_VERSION: <<parameters.version>>
+            S5CMD_BOOL_OVERRIDE: <<parameters.override_installed>>
+            S5CMD_EVAL_INSTALL_DIR: <<parameters.install_dir>>
+            S5CMD_EVAL_BINARY_DIR: <<parameters.binary_dir>>
+            SCRIPT_INSTALL_LINUX: << include(scripts/linux/install.sh) >>
+            SCRIPT_INSTALL_DEPENDENCY_LINUX: << include(scripts/linux/deps-install-script.sh) >>
+            SCRIPT_INSTALL_MACOS: << include(scripts/macos/install.sh) >>
+            SCRIPT_UTILS: << include(scripts/utils.sh) >>
+        command: <<include(scripts/install.sh)>>
