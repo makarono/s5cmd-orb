@@ -17,7 +17,7 @@ jobs:
       executor:
         type: executor
       version:
-        description: Select a specific version of the AWS v2 CLI. By default the 2.2.2 version will be used.
+        description: Select a specific version of the s5cmd. By default the 2.2.2 version will be used.
         default: 2.2.2
         type: string
       override_installed:
@@ -30,33 +30,15 @@ jobs:
           Specify the binary directory
       install_dir:
         type: string
-        default: "/usr/local/aws-cli"
+        default: "/usr/local/s5cmd"
         description: |
           Specify the installation directory
-      role_arn:
-        type: string
-        default: ""
-      role_session_name:
-        description: An identifier for the assumed role session
-        type: string
-        default: ${CIRCLE_JOB}
-      session_duration:
-        description: The duration of the session in seconds
-        type: string
-        default: '3600'
-      profile_name:
-        description: Profile name to be configured.
-        type: string
-        default: "default"
-      region:
-        type: string
-        default: ${AWS_DEFAULT_REGION}
       set_aws_env_vars:
         type: boolean
         default: true
     executor: <<parameters.executor>>
     steps:
-      - aws-cli/setup:
+      - s5cmd/install:
           version: <<parameters.version>>
           override_installed: <<parameters.override_installed>>
           install_dir: <<parameters.install_dir>>
@@ -69,325 +51,14 @@ jobs:
           configure_profile_region: <<parameters.configure_profile_region>>
           region: <<parameters.region>>
           set_aws_env_vars: <<parameters.set_aws_env_vars>>
-      - run:
-          name: Test that paging is disabled
-          command: |-
-            # Test with aws command that would require paging if a pager is enabled
-            touch "${BASH_ENV}"
-            . "${BASH_ENV}"
-            aws --version
-            aws sts get-caller-identity --profile << parameters.profile_name >>
-            aws ec2 describe-images --profile << parameters.profile_name >> \
-              --owners amazon \
-              --filters "Name=platform,Values=windows" "Name=root-device-type,Values=ebs"
-  integration-test-role-arn-setup:
-    executor: docker-base
-    parameters:
-      profile_name:
-        description: Name of new profile associated with role arn.
-        type: string
-      role_arn:
-        description: Role ARN that the profile should take.
-        type: string
-      source_profile:
-        description: Source profile containing credentials to assume the role with role_arn.
-        type: string
-        default: "default"
-    steps:
-      - aws-cli/setup
-      - aws-cli/role_arn_setup:
-          profile_name: <<parameters.profile_name>>
-          source_profile: <<parameters.source_profile>>
-          role_arn: <<parameters.role_arn>>
-      - run:
-          name: Check if profiles were created
-          command: |-
-            which aws
-            ROLE_ARN=$(aws configure get role_arn --profile <<parameters.profile_name>>)
-            SOURCE_PROFILE=$(aws configure get source_profile --profile <<parameters.profile_name>>)
-            if [ "${ROLE_ARN}" == "<<parameters.role_arn>>" ] && [ "${SOURCE_PROFILE}" == "<<parameters.source_profile>>" ]; then
-              echo configuration is correctly set.
-            else
-              echo Wrong configuration set.
-              exit 1
-            fi
-  integration-test-oidc-setup:
-    parameters:
-      executor:
-        type: executor
-      role_arn:
-        type: string
-        default: ""
-      role_session_name:
-        description: An identifier for the assumed role session
-        type: string
-        default: ${CIRCLE_JOB}
-      profile_name:
-        description: Profile name to be configured.
-        type: string
-        default: "default"
-      access_key_id:
-        description: Access key to login.
-        type: string
-        default: ""
-      secret_access_key:
-        description: Secret to login.
-        type: string
-        default: ""
-      region:
-        type: string
-        default: ${AWS_DEFAULT_REGION}
-    executor: <<parameters.executor>>
-    steps:
-      - aws-cli/setup:
-          role_arn: <<parameters.role_arn>>
-          profile_name: <<parameters.profile_name>>
-          role_session_name: <<parameters.role_session_name>>
-          region: <<parameters.region>>
-  integration-test-brew-install:
-    executor: macos
-    steps:
-      - aws-cli/install:
-          use_brew: true
-  integration-test-multiple-setups-reverse:
-    parameters:
-      executor:
-        type: executor
-      role_arn:
-        type: string
-    executor: <<parameters.executor>>
-    steps:
-      - aws-cli/setup:
-          profile_name: integration-test-multiple-setups-env
-      - run: |
-          aws sts get-caller-identity --profile integration-test-multiple-setups-env
-      - aws-cli/setup:
-          profile_name: integration-test-multiple-setups-oidc
-          role_arn: <<parameters.role_arn>>
-      - run: |
-          cat ~/.aws/config
-          cat ~/.aws/credentials
-      - run: |
-          aws sts get-caller-identity --profile integration-test-multiple-setups-oidc
-  integration-test-multiple-setups:
-    parameters:
-      executor:
-        type: executor
-      role_arn:
-        type: string
-    executor: <<parameters.executor>>
-    steps:
-      - aws-cli/setup:
-          set_aws_env_vars: false
-          profile_name: integration-test-multiple-setups-oidc
-          role_arn: <<parameters.role_arn>>
-      - run: |
-          aws sts get-caller-identity --profile integration-test-multiple-setups-oidc
-      - aws-cli/setup:
-          profile_name: integration-test-multiple-setups-env
-      - run: |
-          cat ~/.aws/config
-          cat ~/.aws/credentials
-      - run: |
-          aws sts get-caller-identity --profile integration-test-multiple-setups-env
+
 workflows:
   test-deploy:
     jobs:
-      - integration-test-multiple-setups-reverse:
-          context: [CPE_ORBS_AWS]
-          role_arn: arn:aws:iam::122211685980:role/CPE_ECR_OIDC_TEST
-          matrix:
-            alias: integration-test-multiple-setups-reverse
-            parameters:
-              executor: [macos, linuxvm]
-      - integration-test-multiple-setups:
-          context: [CPE_ORBS_AWS]
-          role_arn: arn:aws:iam::122211685980:role/CPE_ECR_OIDC_TEST
-          matrix:
-            alias: integration-test-multiple-setups
-            parameters:
-              executor: [macos, linuxvm]
-      - integration-test-brew-install:
-          post-steps:
-            - check_aws_version
-      # Testing auth uses oidc whe specified together with env variables
-      - integration-test-oidc-setup:
-          name: integration-test-oidc-withenv
-          role_arn: arn:aws:iam::122211685980:role/CPE_ECR_OIDC_TEST
-          context: [CPE_ORBS_AWS]
-          profile_name: integration-test
-          region: us-west-2
-          executor: docker-base-withenv
-          post-steps:
-            - run:
-                name: Validating auth
-                command: aws sts get-caller-identity --profile integration-test
-      - integration-test-oidc-setup:
-          name: integration-test-oidc-with-noenv
-          role_arn: arn:aws:iam::122211685980:role/CPE_ECR_OIDC_TEST
-          context: [CPE_ORBS_AWS]
-          profile_name: integration-test
-          region: us-west-2
+      - integration-test-install:
+          name: integration-test-install
           executor: docker-base
-          post-steps:
-            - run:
-                name: Validating auth
-                command: aws sts get-caller-identity --profile integration-test                
-      # Testing region configuration
-      - integration-test-install:
-          name: integration-test-configure-profile-region
-          role_arn: arn:aws:iam::122211685980:role/CPE_ECR_OIDC_TEST
-          profile_name: "OIDC-User"
-          context: [CPE-OIDC]
-          configure_default_region: false
-          region: us-west-2
-          executor: docker-base
-          post-steps:
-            - run:
-                name: Checking ~/.aws/config for profile region
-                command: |
-                  if grep "\[profile OIDC-User\]" ~/.aws/config && grep "us-west-2" ~/.aws/config;then
-                    echo "Profile region properly configured"
-                    exit 0
-                  else
-                    echo "Profile region not properly configured"
-                    exit 1
-                  fi
-      - integration-test-install:
-          name: integration-test-configure-default-region
-          role_arn: arn:aws:iam::122211685980:role/CPE_ECR_OIDC_TEST
-          profile_name: "OIDC-User"
-          context: [CPE-OIDC]
-          configure_profile_region: false
-          region: us-west-1
-          executor: docker-base
-          post-steps:
-            - run:
-                name: Checking ~/.aws/config for default region
-                command: |
-                  if grep "\[default\]" ~/.aws/config && grep "us-west-1" ~/.aws/config;then
-                    echo "Default region properly configured"
-                    exit 0
-                  else
-                    echo "Default region not properly configured"
-                    exit 1
-                  fi
-      # Testing OIDC
-      - integration-test-install:
-          name: integration test web identity command with white spaces
-          role_arn: arn:aws:iam::122211685980:role/CPE_ECR_OIDC_TEST
-          context: [CPE-OIDC]
-          executor: docker-base
-          post-steps:
-            - run:
-                name: Web Identity Test - Logging into ECR
-                command: aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 122211685980.dkr.ecr.us-west-2.amazonaws.com
-      - integration-test-install:
-          name: integration-test-web-identity-parameters
-          role_arn: arn:aws:iam::122211685980:role/CPE_ECR_OIDC_TEST
-          session_duration: "${TEST_SESSION_DURATION}"
-          context: [CPE-OIDC]
-          executor: docker-base
-          role_session_name: "test-Sess!on Wi7h inv^l!d-characters that's longer than 64 chars"
-          set_aws_env_vars: false
-          post-steps:
-            - run:
-                name: Check for temporary file containing keys
-                command: |
-                  if [ ! -f "/tmp/default.keys" ]; then
-                    exit 1
-                  fi
-            - run:
-                name: Check Values of Expanded Variables
-                command: |
-                  if [ "${TEST_SESSION_DURATION}" -eq "900" ]; then
-                    exit 0
-                  else
-                    exit 1
-                  fi
-      - integration-test-install:
-          name: integration-test-web-identity-with-profile
-          role_arn: arn:aws:iam::122211685980:role/CPE_ECR_OIDC_TEST
-          profile_name: "OIDC-Tester"
-          context: [CPE-OIDC]
-          executor: docker-base
-          post-steps:
-            - run:
-                name: Web Identity Test - Logging into ECR
-                command: aws ecr get-login-password --region us-west-2 --profile "OIDC-Tester" | docker login --username AWS --password-stdin 122211685980.dkr.ecr.us-west-2.amazonaws.com
-      # Testing executors that do not AWS CLI pre-installed
-      - integration-test-install:
-          name: integration-test-install-<<matrix.executor>>
-          context: [CPE_ORBS_AWS]
-          matrix:
-            alias: test-install
-            parameters:
-              executor: ["docker-base", "macos", "alpine", "docker-nounset-shell", terraform ]
-          filters: *filters
-          post-steps:
-            - check_aws_version
-      # Test installing specific versions on executors without AWS pre-installed
-      - integration-test-install:
-          name: integration-test-install-version-<<matrix.executor>>
-          context: [CPE_ORBS_AWS]
-          matrix:
-            alias: test-install-version
-            parameters:
-              executor: ["docker-base", "macos", "alpine", "docker-nounset-shell" ]
-          version: "2.15.57"
-          filters: *filters
-          post-steps:
-            - check_aws_version:
-                version: "2.15.57"
-      # Test overriding existing version of AWS pre-installed
-      - integration-test-install:
-          name: integration-test-install-override-version-<<matrix.executor>>
-          context: [CPE_ORBS_AWS]
-          matrix:
-            alias: test-install-override-version
-            parameters:
-              executor: ["linuxvm", "windows", "arm"]
-          version: "2.15.57"
-          install_dir: "/usr/local/aws-cli"
-          binary_dir: ""
-          override_installed: true
-          filters: *filters
-          post-steps:
-            - check_aws_version:
-                version: "2.15.57"
-      - integration-test-install:
-          name: integration-test-skip-install-matched-version
-          context: [CPE_ORBS_AWS]
-          executor: arm
-          version: "2.1.21"
-          install_dir: "/usr/local/aws-cli"
-          override_installed: true
-          binary_dir: ""
-          filters: *filters
-          post-steps:
-            - check_aws_version:
-                version: "2.1.21"
-      - integration-test-install:
-          name: integration-test-install-override-version-with-latest-<<matrix.executor>>
-          context: [CPE_ORBS_AWS]
-          matrix:
-            alias: test-install-override-version-with-latest
-            parameters:
-              executor: ["linuxvm", "windows", "arm"]
-          install_dir: "/usr/local/aws-cli"
-          binary_dir: ""
-          override_installed: true
-          filters: *filters
-      - integration-test-role-arn-setup:
-          name: integration-test-role-arn-config
-          source_profile: default
-          profile_name: CircleCI-Tester
-          role_arn: arn:aws:iam::122211685980:role/CPE_ECR_OIDC_TEST
-          context: [CPE_ORBS_AWS]
-          post-steps:
-            - run:
-                  name: Logging into ECR with new profile
-                  command: aws ecr get-login-password --region us-west-2 --profile "CircleCI-Tester" | docker login --username AWS --password-stdin 122211685980.dkr.ecr.us-west-2.amazonaws.com
+
       - orb-tools/pack:
           filters: *release-filters
       - orb-tools/publish:
@@ -396,8 +67,9 @@ workflows:
           pub_type: production
           enable_pr_comment: true
           context: orb-publisher
-          requires: [orb-tools/pack, test-install, test-install-version, test-install-override-version, integration-test-web-identity-with-profile, integration test web identity command with white spaces,integration-test-role-arn-config, test-install-override-version-with-latest, integration-test-skip-install-matched-version, integration-test-brew-install, integration-test-multiple-setups, integration-test-multiple-setups-reverse]
+          requires: [orb-tools/pack, integration-test-install]
           filters: *release-filters
+
 executors:
   terraform:
     docker:
@@ -413,7 +85,7 @@ executors:
       - image: cimg/base:stable
         environment:
           AWS_ACCESS_KEY_ID: "key"
-          AWS_SECRET_ACCESS_KEY: "secret"      
+          AWS_SECRET_ACCESS_KEY: "secret"
   docker-nounset-shell:
     shell: /bin/bash -o nounset
     docker:
@@ -433,6 +105,7 @@ executors:
       image: windows-server-2019-vs2019:current
     shell: bash.exe
     resource_class: windows.medium
+
 commands:
   check_aws_version:
     parameters:
