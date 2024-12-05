@@ -26,6 +26,6 @@ workflows:
       - orb-tools/continue:
           orb_name: s5cmd-orb
           pipeline_number: << pipeline.number >>
-          vcs_type: << pipeline.project.type >>
+          vcs_type: github
           requires: [orb-tools/lint, orb-tools/review, orb-tools/pack, shellcheck/check]
           filters: *filters
