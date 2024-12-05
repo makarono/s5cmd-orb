@@ -1,7 +1,7 @@
 version: 2.1
 orbs:
   orb-tools: circleci/orb-tools@12.0
-  s5cmd: {}
+  s5cmd-orb: {}
 filters: &filters
   tags:
     only: /.*/
@@ -38,7 +38,7 @@ jobs:
         default: true
     executor: <<parameters.executor>>
     steps:
-      - s5cmd/install:
+      - s5cmd-orb/install:
           version: <<parameters.version>>
           override_installed: <<parameters.override_installed>>
           binary_dir: <<parameters.binary_dir>>
