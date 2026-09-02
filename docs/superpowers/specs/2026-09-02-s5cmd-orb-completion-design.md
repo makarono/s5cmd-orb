@@ -83,25 +83,62 @@ Parameters per command:
 
 | command | params |
 |---|---|
-| `cp` | `from`, `to`, `arguments`, `profile_name`, `when` |
-| `sync` | `from`, `to`, `arguments`, `profile_name`, `when` |
-| `mv` | `from`, `to`, `arguments`, `profile_name`, `when` |
-| `rm` | `target`, `arguments`, `profile_name`, `when` |
-| `ls` | `target`, `arguments`, `profile_name`, `when` |
+| `cp` | `from`, `to`, `arguments`, `profile_name`, `endpoint_url`, `when` |
+| `sync` | `from`, `to`, `arguments`, `profile_name`, `endpoint_url`, `when` |
+| `mv` | `from`, `to`, `arguments`, `profile_name`, `endpoint_url`, `when` |
+| `rm` | `target`, `arguments`, `profile_name`, `endpoint_url`, `when` |
+| `ls` | `target`, `arguments`, `profile_name`, `endpoint_url`, `when` |
+
+`endpoint_url` (default `""`) targets S3-compatible services (MinIO,
+R2, etc) instead of AWS S3 - maps to s5cmd's `--endpoint-url` global
+flag / `S3_ENDPOINT_URL` env var.
 
 Same shape as `aws-s3`'s `copy`/`sync` commands: values go in via
 `environment:` (`ORB_EVAL_FROM`, `ORB_EVAL_TO`, `ORB_EVAL_TARGET`,
-`ORB_STR_ARGUMENTS`, `ORB_STR_PROFILE_NAME`), script does
-`circleci env subst`, then builds the argv array before exec.
+`ORB_STR_ARGUMENTS`, `ORB_STR_PROFILE_NAME`, `ORB_STR_ENDPOINT_URL`),
+script does `circleci env subst`, then builds the argv array before
+exec.
 
-**Key difference from aws cli**: s5cmd takes `--profile` as a
-*global* flag, before the subcommand (`s5cmd --profile x cp ...`),
-not after it like `aws s3 cp ... --profile x`. Each script must place
-it accordingly:
+**`arguments` is a single free-form string, not a list param** -
+matches `aws-s3-orb` exactly rather than inventing a new mechanism.
+s5cmd exposes 20-40 flags per command (`--acl`, `--sse`,
+`--cache-control`, `--exclude`, `--metadata`, ...) - too many to
+expose as individual orb parameters, so `arguments` is the escape
+hatch, and the caller can put as many flags in it as they want,
+space-separated, e.g.:
+
+```yaml
+arguments: --acl public-read --cache-control "max-age=86400" --exclude "*.tmp"
+```
+
+The script splits this into separate argv entries by word-splitting
+on spaces, exactly like `aws-s3-orb`'s `copy.sh`/`sync.sh`:
+
+```sh
+ORB_STR_ARGUMENTS="$(echo "${ORB_STR_ARGUMENTS}" | circleci env subst)"
+if [ -n "${ORB_STR_ARGUMENTS}" ]; then
+    IFS=' '
+    set --
+    for arg in $(echo "${ORB_STR_ARGUMENTS}" | sed 's/,[ ]*/,/g'); do
+        set -- "$@" "$arg"
+    done
+fi
+```
+
+The `sed 's/,[ ]*/,/g'` collapses `", "` down to `","` first, so a
+comma-separated value inside one flag (e.g. a tag list) survives as
+one word instead of being split apart - same subtlety as the
+reference orb.
+
+**Key difference from aws cli**: s5cmd takes `--profile` and
+`--endpoint-url` as *global* flags, before the subcommand
+(`s5cmd --profile x --endpoint-url y cp ...`), not after it like
+`aws s3 cp ... --profile x`. Each script must place them accordingly:
 
 ```sh
 set -- s5cmd
 [ -n "$ORB_STR_PROFILE_NAME" ] && set -- "$@" --profile "$ORB_STR_PROFILE_NAME"
+[ -n "$ORB_STR_ENDPOINT_URL" ] && set -- "$@" --endpoint-url "$ORB_STR_ENDPOINT_URL"
 set -- "$@" cp "$ORB_EVAL_FROM" "$ORB_EVAL_TO"
 # + arguments appended same way copy.sh in aws-s3 does it
 "$@"
