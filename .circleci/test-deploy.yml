@@ -44,6 +44,9 @@ jobs:
 
 workflows:
   test-deploy:
+    # PLACEHOLDER_OIDC_CONTEXT, PLACEHOLDER_ACCOUNT_ID, PLACEHOLDER_S5CMD_TEST_ROLE, and
+    # PLACEHOLDER_S5CMD_TEST_BUCKET must be replaced with real values before these
+    # integration tests can run.
     jobs:
       - integration-test-install:
           name: integration-test-install-<<matrix.executor>>
@@ -60,10 +63,10 @@ workflows:
                 role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
                 role_session_name: "s5cmd-orb-test-session"
                 profile_name: "OIDC-User"
-          from: "/tmp/s5cmd-test-bucket"
-          to: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb"
+          from: "/tmp/s5cmd-test-bucket/"
+          to: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb-sync/"
           profile_name: "OIDC-User"
-          context: [CPE-OIDC]
+          context: [PLACEHOLDER_OIDC_CONTEXT]
           filters: *filters
       - s5cmd-orb/cp:
           name: integration-test-cp
@@ -77,7 +80,7 @@ workflows:
           from: "/tmp/s5cmd-test-bucket/build_asset.txt"
           to: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/build_asset.txt"
           profile_name: "OIDC-User"
-          context: [CPE-OIDC]
+          context: [PLACEHOLDER_OIDC_CONTEXT]
           filters: *filters
       - s5cmd-orb/ls:
           name: integration-test-ls
@@ -88,7 +91,7 @@ workflows:
                 profile_name: "OIDC-User"
           target: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/"
           profile_name: "OIDC-User"
-          context: [CPE-OIDC]
+          context: [PLACEHOLDER_OIDC_CONTEXT]
           filters: *filters
           requires:
             - integration-test-cp
@@ -102,7 +105,7 @@ workflows:
           from: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/build_asset.txt"
           to: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/build_asset_moved.txt"
           profile_name: "OIDC-User"
-          context: [CPE-OIDC]
+          context: [PLACEHOLDER_OIDC_CONTEXT]
           filters: *filters
           requires:
             - integration-test-ls
@@ -115,7 +118,7 @@ workflows:
                 profile_name: "OIDC-User"
           target: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/*"
           profile_name: "OIDC-User"
-          context: [CPE-OIDC]
+          context: [PLACEHOLDER_OIDC_CONTEXT]
           filters: *filters
           requires:
             - integration-test-mv
@@ -128,7 +131,7 @@ workflows:
           enable_pr_comment: true
           requires:
             - orb-tools/pack
-            - integration-test-install
+            - integration-test-install-docker-base
             - integration-test-sync
             - integration-test-cp
             - integration-test-ls

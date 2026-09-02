@@ -21,7 +21,7 @@ install_binary() {
   binary_name="$(basename "$binary_source")"
 
   echo "Installing s5cmd..."
-  mkdir -p "$binary_target_dir"
+  $SUDO mkdir -p "$binary_target_dir"
   $SUDO mv "$binary_source" "$binary_target_dir/$binary_name"
   $SUDO chmod +x "$binary_target_dir/$binary_name"
 }

@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 S5CMD_STR_S5CMD_VERSION="$(echo "${S5CMD_STR_S5CMD_VERSION}" | circleci env subst)"
 S5CMD_EVAL_INSTALL_DIR="$(eval echo "${S5CMD_EVAL_INSTALL_DIR}" | circleci env subst)"
 S5CMD_EVAL_BINARY_DIR="$(eval echo "${S5CMD_EVAL_BINARY_DIR}" | circleci env subst)"
@@ -9,6 +10,11 @@ set_sudo
 
 if [ "$S5CMD_STR_S5CMD_VERSION" = "latest" ]; then
     S5CMD_STR_S5CMD_VERSION="$(curl -fsSL https://api.github.com/repos/peak/s5cmd/releases/latest | resolve_latest_version)"
+fi
+
+if [ -z "$S5CMD_STR_S5CMD_VERSION" ]; then
+    echo "Error: failed to resolve latest s5cmd version from GitHub." >&2
+    exit 1
 fi
 
 # Install per platform

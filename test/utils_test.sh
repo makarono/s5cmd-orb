@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+# shellcheck disable=SC1091
 . "$(dirname "$0")/../src/scripts/utils.sh"
 
 is_true "true" || { echo "FAIL: is_true(true) should succeed"; exit 1; }

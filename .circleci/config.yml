@@ -12,6 +12,20 @@ filters: &filters
   tags:
     only: /.*/
 
+jobs:
+  unit-tests:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Run test suite
+          command: |
+            for f in test/*.sh; do
+              echo "== $f =="
+              sh "$f" || bash "$f"
+            done
+
 workflows:
   lint-pack:
     jobs:
@@ -23,9 +37,11 @@ workflows:
           filters: *filters
       - shellcheck/check:
           filters: *filters
+      - unit-tests:
+          filters: *filters
       - orb-tools/continue:
           orb_name: s5cmd-orb
           pipeline_number: << pipeline.number >>
           vcs_type: github
-          requires: [orb-tools/lint, orb-tools/review, orb-tools/pack, shellcheck/check]
+          requires: [orb-tools/lint, orb-tools/review, orb-tools/pack, shellcheck/check, unit-tests]
           filters: *filters

@@ -38,6 +38,7 @@ export SUDO
 . "$(dirname "$0")/../src/scripts/linux/install.sh"
 get_architecture() { echo "x86_64"; }
 
+# shellcheck disable=SC2034  # used by sourced Install_S5CMD_CLI
 S5CMD_EVAL_INSTALL_DIR="$TEST_DIR/install"
 S5CMD_EVAL_BINARY_DIR="$TEST_DIR/bin-target"
 
