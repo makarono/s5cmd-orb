@@ -11,7 +11,7 @@ parameters:
     description: Configure the executor resource class
     type: enum
     enum: ["small", "medium", "medium+", "large", "xlarge"]
-    default: "medium"
+    default: "small"
 
 docker:
   - image: cimg/aws:<<parameters.tag>>
