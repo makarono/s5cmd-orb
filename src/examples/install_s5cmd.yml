@@ -1,17 +1,16 @@
-description: Easily install and configure the AWS CLI automatically in your jobs or commands.
+description: Easily install s5cmd and use it to interact with S3 in your jobs.
 usage:
   version: 2.1
 
   orbs:
-    s5cmd: circleci/s5cmd@5.1
+    s5cmd-orb: <your-orb-namespace>/s5cmd-orb@1.0.0
 
   jobs:
     s5cmd-example:
-      executor: s5cmd/default
+      executor: s5cmd-orb/default
       steps:
         - checkout
-        - s5cmd/setup:
-            profile_name: example
+        - s5cmd-orb/install
         - run: echo "Run your code here"
 
   workflows:
