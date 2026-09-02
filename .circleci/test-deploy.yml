@@ -1,6 +1,7 @@
 version: 2.1
 orbs:
   orb-tools: circleci/orb-tools@12.0
+  aws-cli: circleci/aws-cli@5.1.1
   s5cmd-orb: {}
 filters: &filters
   tags:
@@ -45,9 +46,79 @@ workflows:
   test-deploy:
     jobs:
       - integration-test-install:
-          name: integration-test-install
-          executor: docker-base
-
+          name: integration-test-install-<<matrix.executor>>
+          matrix:
+            alias: integration-test-install
+            parameters:
+              executor: [docker-base, macos]
+      - s5cmd-orb/sync:
+          name: integration-test-sync
+          pre-steps:
+            - run: mkdir -p /tmp/s5cmd-test-bucket && echo "lorem ipsum" > /tmp/s5cmd-test-bucket/build_asset.txt
+          auth:
+            - aws-cli/setup:
+                role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
+                role_session_name: "s5cmd-orb-test-session"
+                profile_name: "OIDC-User"
+          from: "/tmp/s5cmd-test-bucket"
+          to: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb"
+          profile_name: "OIDC-User"
+          context: [CPE-OIDC]
+          filters: *filters
+      - s5cmd-orb/cp:
+          name: integration-test-cp
+          pre-steps:
+            - run: mkdir -p /tmp/s5cmd-test-bucket && echo "lorem ipsum" > /tmp/s5cmd-test-bucket/build_asset.txt
+          auth:
+            - aws-cli/setup:
+                role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
+                role_session_name: "s5cmd-orb-test-session"
+                profile_name: "OIDC-User"
+          from: "/tmp/s5cmd-test-bucket/build_asset.txt"
+          to: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/build_asset.txt"
+          profile_name: "OIDC-User"
+          context: [CPE-OIDC]
+          filters: *filters
+      - s5cmd-orb/ls:
+          name: integration-test-ls
+          auth:
+            - aws-cli/setup:
+                role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
+                role_session_name: "s5cmd-orb-test-session"
+                profile_name: "OIDC-User"
+          target: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/"
+          profile_name: "OIDC-User"
+          context: [CPE-OIDC]
+          filters: *filters
+          requires:
+            - integration-test-cp
+      - s5cmd-orb/mv:
+          name: integration-test-mv
+          auth:
+            - aws-cli/setup:
+                role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
+                role_session_name: "s5cmd-orb-test-session"
+                profile_name: "OIDC-User"
+          from: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/build_asset.txt"
+          to: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/build_asset_moved.txt"
+          profile_name: "OIDC-User"
+          context: [CPE-OIDC]
+          filters: *filters
+          requires:
+            - integration-test-ls
+      - s5cmd-orb/rm:
+          name: integration-test-rm
+          auth:
+            - aws-cli/setup:
+                role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
+                role_session_name: "s5cmd-orb-test-session"
+                profile_name: "OIDC-User"
+          target: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/*"
+          profile_name: "OIDC-User"
+          context: [CPE-OIDC]
+          filters: *filters
+          requires:
+            - integration-test-mv
       - orb-tools/pack:
           filters: *release-filters
       - orb-tools/publish:
@@ -55,8 +126,15 @@ workflows:
           vcs_type: << pipeline.project.type >>
           pub_type: production
           enable_pr_comment: true
+          requires:
+            - orb-tools/pack
+            - integration-test-install
+            - integration-test-sync
+            - integration-test-cp
+            - integration-test-ls
+            - integration-test-mv
+            - integration-test-rm
           context: orb-publisher
-          requires: [orb-tools/pack, integration-test-install]
           filters: *release-filters
 
 executors:
