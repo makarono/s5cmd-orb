@@ -19,6 +19,7 @@ if [ "$SYS_ENV_PLATFORM" = "linux" ] || [ "$SYS_ENV_PLATFORM" = "linux_alpine" ]
 elif [ "$SYS_ENV_PLATFORM" = "windows" ]; then
     echo "This orb does not currently support your platform."
 elif [ "$SYS_ENV_PLATFORM" = "macos" ]; then
+    eval "$SCRIPT_INSTALL_DEPENDENCY_MACOS"
     eval "$SCRIPT_INSTALL_MACOS"
 else
     echo "This orb does not currently support your platform."
