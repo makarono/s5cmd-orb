@@ -40,7 +40,6 @@ jobs:
           override_installed: <<parameters.override_installed>>
           binary_dir: <<parameters.binary_dir>>
           install_dir: <<parameters.install_dir>>
-          set_aws_env_vars: <<parameters.set_aws_env_vars>>
 
 workflows:
   test-deploy:
@@ -52,7 +51,7 @@ workflows:
       - orb-tools/pack:
           filters: *release-filters
       - orb-tools/publish:
-          orb_name: circleci/aws-cli
+          orb_name: s5cmd-orb
           vcs_type: << pipeline.project.type >>
           pub_type: production
           enable_pr_comment: true
