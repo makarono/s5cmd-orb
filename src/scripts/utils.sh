@@ -36,3 +36,11 @@ set_sudo() {
     if [ "$EUID" = 0 ]; then export SUDO=""; else export SUDO="sudo"; fi
   fi
 }
+
+is_true() {
+  [ "$1" = "true" ]
+}
+
+resolve_latest_version() {
+  sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n1
+}

@@ -1,8 +1,4 @@
-#!/usr/bin/env bash
-#shellcheck disable=SC1090
-
-set -ex
-
+# shellcheck disable=SC2148
 get_architecture() {
   uname -m
 }
@@ -20,18 +16,21 @@ download_and_extract() {
 
 install_binary() {
   local binary_source="$1"
-  local binary_target="$2"
+  local binary_target_dir="$2"
+  local binary_name
+  binary_name="$(basename "$binary_source")"
 
   echo "Installing s5cmd..."
-  $SUDO mv "$binary_source" "$binary_target"
-  $SUDO chmod +x "$binary_target"
+  mkdir -p "$binary_target_dir"
+  $SUDO mv "$binary_source" "$binary_target_dir/$binary_name"
+  $SUDO chmod +x "$binary_target_dir/$binary_name"
 }
 
 Install_S5CMD_CLI() {
   VERSION="${1:-2.2.2}"
   BASE_URL="https://github.com/peak/s5cmd/releases/download/v${VERSION}/"
-  TEMP_DIR="${S5CMD_CLI_EVAL_INSTALL_DIR}"
-  BINARY_TARGET="${S5CMD_CLI_EVAL_BINARY_DIR}"
+  TEMP_DIR="${S5CMD_EVAL_INSTALL_DIR}"
+  BINARY_TARGET_DIR="${S5CMD_EVAL_BINARY_DIR}"
 
   declare -A SUPPORTED_ARCHIVE_FILES=(
     ["x86_64"]="s5cmd_${VERSION}_Linux-64bit.tar.gz"
@@ -62,10 +61,10 @@ Install_S5CMD_CLI() {
     exit 1
   fi
 
-  install_binary "$BINARY_SOURCE" "$BINARY_TARGET"
+  install_binary "$BINARY_SOURCE" "$BINARY_TARGET_DIR"
 
   echo "Verifying s5cmd installation..."
-  "$BINARY_TARGET" version
+  "$BINARY_TARGET_DIR/s5cmd" version
 
   echo "s5cmd installation completed successfully."
 }

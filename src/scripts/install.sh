@@ -7,6 +7,10 @@ eval "$SCRIPT_UTILS"
 detect_os
 set_sudo
 
+if [ "$S5CMD_STR_S5CMD_VERSION" = "latest" ]; then
+    S5CMD_STR_S5CMD_VERSION="$(curl -fsSL https://api.github.com/repos/peak/s5cmd/releases/latest | resolve_latest_version)"
+fi
+
 # Install per platform
 if [ "$SYS_ENV_PLATFORM" = "linux" ] || [ "$SYS_ENV_PLATFORM" = "linux_alpine" ]; then
     eval "$SCRIPT_INSTALL_DEPENDENCY_LINUX"
@@ -28,7 +32,7 @@ if ! command -v s5cmd >/dev/null 2>&1; then
 elif s5cmd version | grep "${S5CMD_STR_S5CMD_VERSION}"; then
     echo "s5cmd CLI version ${S5CMD_STR_S5CMD_VERSION} already installed. Skipping installation"
     exit 0
-elif [ "$S5CMD_BOOL_OVERRIDE" -eq 1 ]; then
+elif is_true "$S5CMD_BOOL_OVERRIDE"; then
     Uninstall_S5CMD_CLI
     install_dependencies
     Install_S5CMD_CLI "${S5CMD_STR_S5CMD_VERSION}"
