@@ -1,0 +1,51 @@
+description: >
+  Checkout code, optionally authenticate, install s5cmd, and remove one or more S3 objects.
+parameters:
+  target:
+    type: string
+    description: An S3 URI or wildcard pattern of object(s) to remove.
+  arguments:
+    type: string
+    default: ""
+    description: Additional s5cmd rm flags, space-separated.
+  profile_name:
+    type: string
+    default: ""
+    description: AWS profile name to be configured.
+  endpoint_url:
+    type: string
+    default: ""
+    description: Custom S3-compatible endpoint URL.
+  when:
+    type: enum
+    enum: ["on_success", "on_fail", "always"]
+    default: "on_success"
+  auth:
+    description: |
+      The authentication method used to access your AWS account. Import the aws-cli orb in your config and
+      provide the aws-cli/setup command to authenticate with your preferred method. View examples for more information.
+      If not provided, authentication will be handled by the environment (e.g., IAM roles, environment variables).
+    type: steps
+    default: []
+  executor:
+    description: The executor to use for this job. By default, this uses the "default" executor provided by this orb.
+    type: executor
+    default: default
+  s5cmd_version:
+    type: string
+    default: latest
+    description: s5cmd version to install before running this job's command.
+executor: <<parameters.executor>>
+steps:
+  - checkout
+  - when:
+      condition: <<parameters.auth>>
+      steps: <<parameters.auth>>
+  - install:
+      version: <<parameters.s5cmd_version>>
+  - rm:
+      when: <<parameters.when>>
+      target: <<parameters.target>>
+      arguments: <<parameters.arguments>>
+      profile_name: <<parameters.profile_name>>
+      endpoint_url: <<parameters.endpoint_url>>
