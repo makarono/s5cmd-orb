@@ -1,0 +1,18 @@
+description: |
+  An image with the AWS CLI preinstalled, used as the base for s5cmd-orb jobs.
+  s5cmd itself is installed by the orb's `install` command/job step, not by this image.
+parameters:
+  tag:
+    description: >
+      Select any of the available tags here: https://circleci.com/developer/images/image/cimg/aws.
+    type: string
+    default: "stable"
+  resource_class:
+    description: Configure the executor resource class
+    type: enum
+    enum: ["small", "medium", "medium+", "large", "xlarge"]
+    default: "medium"
+
+docker:
+  - image: cimg/aws:<<parameters.tag>>
+resource_class: <<parameters.resource_class>>
