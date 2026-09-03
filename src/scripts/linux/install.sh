@@ -29,7 +29,7 @@ install_binary() {
 Install_S5CMD_CLI() {
   VERSION="${1:-2.2.2}"
   BASE_URL="https://github.com/peak/s5cmd/releases/download/v${VERSION}/"
-  TEMP_DIR="${S5CMD_EVAL_INSTALL_DIR}"
+  TEMP_DIR="$(mktemp -d)"
   BINARY_TARGET_DIR="${S5CMD_EVAL_BINARY_DIR}"
 
   declare -A SUPPORTED_ARCHIVE_FILES=(
@@ -52,7 +52,6 @@ Install_S5CMD_CLI() {
   DOWNLOAD_URL="${BASE_URL}${ARCHIVE_NAME}"
   TEMP_TAR="${TEMP_DIR}/${ARCHIVE_NAME}"
 
-  mkdir -p "$TEMP_DIR"
   download_and_extract "$DOWNLOAD_URL" "$TEMP_TAR"
 
   BINARY_SOURCE="${TEMP_DIR}/s5cmd"

@@ -165,4 +165,5 @@ executors:
       - image: cimg/base:stable
   macos:
     macos:
-      xcode: 14.2.0
+      xcode: 16.2.0
+    resource_class: m4pro.medium
