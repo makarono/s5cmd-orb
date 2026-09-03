@@ -40,7 +40,7 @@ workflows:
       - unit-tests:
           filters: *filters
       - orb-tools/continue:
-          orb_name: aduro-orbs/s5cmd-orb
+          orb_name: s5cmd-orb
           pipeline_number: << pipeline.number >>
           vcs_type: github
           requires: [orb-tools/lint, orb-tools/review, orb-tools/pack, shellcheck/check, unit-tests]
