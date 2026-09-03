@@ -126,7 +126,7 @@ workflows:
           filters: *release-filters
       - orb-tools/publish:
           orb_name: s5cmd-orb
-          vcs_type: << pipeline.project.type >>
+          vcs_type: github
           pub_type: production
           enable_pr_comment: true
           requires:
