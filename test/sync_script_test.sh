@@ -14,7 +14,7 @@ chmod +x "$STUB_BIN/s5cmd"
 cat > "$STUB_BIN/circleci" <<'EOF'
 #!/bin/sh
 if [ "$1" = "env" ] && [ "$2" = "subst" ]; then
-  if [ -n "${3:-}" ]; then printf '%s' "$3"; else cat; fi
+  if [ "$#" -ge 3 ]; then printf '%s' "$3"; else cat; fi
 fi
 EOF
 chmod +x "$STUB_BIN/circleci"
