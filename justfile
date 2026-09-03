@@ -2,6 +2,8 @@ orb_name := "aduro-orbs/s5cmd-orb"
 orb_file := "/tmp/s5cmd-orb.yml"
 dev_tag  := "dev:first"
 
+export CIRCLE_TOKEN := `cat ~/.circleci/cli.yml | yq ".token"`
+
 # Show available commands
 default:
     @just --list
