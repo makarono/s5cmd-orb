@@ -144,7 +144,6 @@ workflows:
             - integration-test-ls
             - integration-test-mv
             - integration-test-rm
-          context: orb-publisher
           filters: *release-filters
 
 executors:
