@@ -1,7 +1,6 @@
 version: 2.1
 orbs:
   orb-tools: circleci/orb-tools@12.0
-  aws-cli: circleci/aws-cli@5.1.1
   s5cmd-orb: {}
 filters: &filters
   tags:
@@ -11,6 +10,31 @@ release-filters: &release-filters
     ignore: /.*/
   tags:
     only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+
+commands:
+  setup-minio-bucket:
+    parameters:
+      seed_object:
+        type: boolean
+        default: false
+    steps:
+      - run:
+          name: Wait for Minio
+          command: |
+            until aws --endpoint-url http://localhost:9000 s3 ls 2>/dev/null; do
+              echo "Waiting for Minio..."; sleep 2
+            done
+      - run:
+          name: Create test bucket
+          command: aws --endpoint-url http://localhost:9000 s3api create-bucket --bucket test-bucket
+      - when:
+          condition: <<parameters.seed_object>>
+          steps:
+            - run:
+                name: Seed test object
+                command: |
+                  echo "lorem ipsum" > /tmp/test-file.txt
+                  aws --endpoint-url http://localhost:9000 s3 cp /tmp/test-file.txt s3://test-bucket/s5cmd-orb/build_asset.txt
 
 jobs:
   integration-test-install:
@@ -27,13 +51,11 @@ jobs:
       binary_dir:
         type: string
         default: "/usr/local/bin"
-        description: |
-          Specify the binary directory
+        description: Specify the binary directory
       install_dir:
         type: string
         default: "/usr/local/s5cmd"
-        description: |
-          Specify the installation directory
+        description: Specify the installation directory
     executor: <<parameters.executor>>
     steps:
       - s5cmd-orb/install:
@@ -44,9 +66,6 @@ jobs:
 
 workflows:
   test-deploy:
-    # PLACEHOLDER_OIDC_CONTEXT, PLACEHOLDER_ACCOUNT_ID, PLACEHOLDER_S5CMD_TEST_ROLE, and
-    # PLACEHOLDER_S5CMD_TEST_BUCKET must be replaced with real values before these
-    # integration tests can run.
     jobs:
       - integration-test-install:
           name: integration-test-install-<<matrix.executor>>
@@ -54,74 +73,62 @@ workflows:
             alias: integration-test-install
             parameters:
               executor: [docker-base, macos]
-      - s5cmd-orb/sync:
-          name: integration-test-sync
-          pre-steps:
-            - run: mkdir -p /tmp/s5cmd-test-bucket && echo "lorem ipsum" > /tmp/s5cmd-test-bucket/build_asset.txt
-          auth:
-            - aws-cli/setup:
-                role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
-                role_session_name: "s5cmd-orb-test-session"
-                profile_name: "OIDC-User"
-          from: "/tmp/s5cmd-test-bucket/"
-          to: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb-sync/"
-          profile_name: "OIDC-User"
-          context: [PLACEHOLDER_OIDC_CONTEXT]
-          filters: *filters
       - s5cmd-orb/cp:
           name: integration-test-cp
+          executor: minio
           pre-steps:
-            - run: mkdir -p /tmp/s5cmd-test-bucket && echo "lorem ipsum" > /tmp/s5cmd-test-bucket/build_asset.txt
-          auth:
-            - aws-cli/setup:
-                role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
-                role_session_name: "s5cmd-orb-test-session"
-                profile_name: "OIDC-User"
+            - setup-minio-bucket
+            - run:
+                name: Create test file
+                command: |
+                  mkdir -p /tmp/s5cmd-test-bucket
+                  echo "lorem ipsum" > /tmp/s5cmd-test-bucket/build_asset.txt
           from: "/tmp/s5cmd-test-bucket/build_asset.txt"
-          to: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/build_asset.txt"
-          profile_name: "OIDC-User"
-          context: [PLACEHOLDER_OIDC_CONTEXT]
+          to: "s3://test-bucket/s5cmd-orb/build_asset.txt"
+          endpoint_url: http://localhost:9000
+          filters: *filters
+      - s5cmd-orb/sync:
+          name: integration-test-sync
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket
+            - run:
+                name: Create test directory
+                command: |
+                  mkdir -p /tmp/s5cmd-test-bucket
+                  echo "lorem ipsum" > /tmp/s5cmd-test-bucket/build_asset.txt
+          from: "/tmp/s5cmd-test-bucket/"
+          to: "s3://test-bucket/s5cmd-orb-sync/"
+          endpoint_url: http://localhost:9000
           filters: *filters
       - s5cmd-orb/ls:
           name: integration-test-ls
-          auth:
-            - aws-cli/setup:
-                role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
-                role_session_name: "s5cmd-orb-test-session"
-                profile_name: "OIDC-User"
-          target: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/"
-          profile_name: "OIDC-User"
-          context: [PLACEHOLDER_OIDC_CONTEXT]
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket:
+                seed_object: true
+          target: "s3://test-bucket/s5cmd-orb/"
+          endpoint_url: http://localhost:9000
           filters: *filters
-          requires:
-            - integration-test-cp
       - s5cmd-orb/mv:
           name: integration-test-mv
-          auth:
-            - aws-cli/setup:
-                role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
-                role_session_name: "s5cmd-orb-test-session"
-                profile_name: "OIDC-User"
-          from: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/build_asset.txt"
-          to: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/build_asset_moved.txt"
-          profile_name: "OIDC-User"
-          context: [PLACEHOLDER_OIDC_CONTEXT]
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket:
+                seed_object: true
+          from: "s3://test-bucket/s5cmd-orb/build_asset.txt"
+          to: "s3://test-bucket/s5cmd-orb/build_asset_moved.txt"
+          endpoint_url: http://localhost:9000
           filters: *filters
-          requires:
-            - integration-test-ls
       - s5cmd-orb/rm:
           name: integration-test-rm
-          auth:
-            - aws-cli/setup:
-                role_arn: arn:aws:iam::PLACEHOLDER_ACCOUNT_ID:role/PLACEHOLDER_S5CMD_TEST_ROLE
-                role_session_name: "s5cmd-orb-test-session"
-                profile_name: "OIDC-User"
-          target: "s3://PLACEHOLDER_S5CMD_TEST_BUCKET/s5cmd-orb/*"
-          profile_name: "OIDC-User"
-          context: [PLACEHOLDER_OIDC_CONTEXT]
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket:
+                seed_object: true
+          target: "s3://test-bucket/s5cmd-orb/*"
+          endpoint_url: http://localhost:9000
           filters: *filters
-          requires:
-            - integration-test-mv
       - orb-tools/pack:
           filters: *release-filters
       - orb-tools/publish:
@@ -141,55 +148,21 @@ workflows:
           filters: *release-filters
 
 executors:
-  terraform:
+  minio:
     docker:
-      - image: hashicorp/terraform:1.4.1
-  alpine:
-    docker:
-      - image: alpine:latest
-  docker-base:
-    docker:
-      - image: cimg/base:stable
-  docker-base-withenv:
-    docker:
-      - image: cimg/base:stable
+      - image: cimg/aws:2026.09.1
         environment:
-          AWS_ACCESS_KEY_ID: "key"
-          AWS_SECRET_ACCESS_KEY: "secret"
-  docker-nounset-shell:
-    shell: /bin/bash -o nounset
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
+          AWS_DEFAULT_REGION: us-east-1
+      - image: minio/minio
+        command: server /data
+        environment:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+  docker-base:
     docker:
       - image: cimg/base:stable
   macos:
     macos:
       xcode: 14.2.0
-  arm:
-    machine:
-      image: ubuntu-2004:current
-    resource_class: arm.medium
-  linuxvm:
-    machine:
-      image: ubuntu-2004:current
-  windows:
-    machine:
-      image: windows-server-2019-vs2019:current
-    shell: bash.exe
-    resource_class: windows.medium
-
-commands:
-  check_aws_version:
-    parameters:
-      version:
-        type: string
-        default: ""
-    steps:
-      - run:
-          name: check_aws_version
-          command: |
-            aws --version
-            if [ -n "<<parameters.version>>" ]; then
-              INSTALLED_AWS_VERSION="$(aws --version)"
-              aws --version | grep <<parameters.version>>
-            else
-              if ! command -v aws &> /dev/null; then exit 1; else exit 0; fi
-            fi
