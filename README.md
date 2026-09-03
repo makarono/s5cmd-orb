@@ -16,6 +16,35 @@ Example use-cases are provided on the orb's registry page once published, and as
 
 s5cmd docs: https://github.com/peak/s5cmd
 
+## Development
+
+Prerequisites: [just](https://github.com/casey/just), [CircleCI CLI](https://circleci.com/docs/local-cli/) configured with a personal API token (`circleci setup`).
+
+The `CIRCLE_TOKEN` is read automatically from `~/.circleci/cli.yml` — no manual export needed.
+
+### Recipes
+
+| Command | Description |
+|---------|-------------|
+| `just test` | Run the full unit test suite locally |
+| `just pack` | Pack `src/` into a single `orb.yml` file |
+| `just validate` | Pack and validate the orb YAML |
+| `just publish-dev` | Pack, validate, and publish as `dev:first` |
+| `just release` | Full release: pack → validate → publish dev → promote as **patch** |
+| `just release minor` | Same flow, promote as **minor** |
+| `just release major` | Same flow, promote as **major** |
+| `just list` | List all published versions in the `aduro-orbs` namespace |
+| `just source 1.0.0` | Print the source of a specific published version |
+
+### Release workflow
+
+```sh
+just test             # verify all tests pass
+just release          # publish patch release (e.g. 0.0.1 → 0.0.2)
+just release minor    # publish minor release (e.g. 0.0.x → 0.1.0)
+just release major    # publish major release (e.g. 0.x.x → 1.0.0)
+```
+
 ### How to Contribute
 
 Issues and pull requests are welcome against this repository.
