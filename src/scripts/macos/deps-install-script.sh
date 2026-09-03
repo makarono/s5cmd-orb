@@ -10,7 +10,8 @@ log() {
     for ((i = 0; i < message_length; i++)); do
         line+="="
     done
-    echo "${message^}"
+    local first; first=$(printf '%s' "${message:0:1}" | tr '[:lower:]' '[:upper:]')
+    echo "${first}${message:1}"
     echo "$line"
 }
 
