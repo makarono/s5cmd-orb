@@ -23,7 +23,7 @@ publish-dev: validate
 
 # Promote dev version to production — usage: just release patch|minor|major
 release bump="patch": publish-dev
-    circleci orb publish promote {{ orb_name }}@{{ dev_tag }} {{ bump }}
+    circleci orb publish promote {{ orb_name }}@{{ dev_tag }} --bump {{ bump }}
 
 # List all published versions
 list:
