@@ -113,8 +113,9 @@ commands:
 jobs:
   integration-test-install:
     parameters:
-      executor:
-        type: executor
+      docker_image:
+        type: string
+        description: Docker image to install s5cmd on, e.g. ubuntu:22.04 or alpine:3.20.
       version:
         description: Select a specific version of the s5cmd. By default the 2.2.2 version will be used.
         default: 2.2.2
@@ -130,23 +131,55 @@ jobs:
         type: string
         default: "/usr/local/s5cmd"
         description: Specify the installation directory
-    executor: <<parameters.executor>>
+    docker:
+      - image: <<parameters.docker_image>>
     steps:
       - s5cmd-orb/install:
           version: <<parameters.version>>
           override_installed: <<parameters.override_installed>>
           binary_dir: <<parameters.binary_dir>>
           install_dir: <<parameters.install_dir>>
+      - run:
+          name: Verify s5cmd binary is installed and runnable
+          command: |
+            command -v s5cmd
+            s5cmd version
 
 workflows:
   test-deploy:
     jobs:
+      # -- install: exercised on every Linux distribution family the
+      # dependency-install script claims to support (see
+      # src/scripts/linux/deps-install-script.sh). Runs in parallel since
+      # these are independent workflow jobs with no "requires" between them.
       - integration-test-install:
-          name: integration-test-install-<<matrix.executor>>
-          matrix:
-            alias: integration-test-install
-            parameters:
-              executor: [docker-base]
+          name: integration-test-install-cimg-base
+          docker_image: cimg/base:stable
+          filters: *filters
+      - integration-test-install:
+          name: integration-test-install-ubuntu
+          docker_image: ubuntu:22.04
+          filters: *filters
+      - integration-test-install:
+          name: integration-test-install-debian
+          docker_image: debian:12
+          filters: *filters
+      - integration-test-install:
+          name: integration-test-install-centos
+          docker_image: rockylinux:9
+          filters: *filters
+      - integration-test-install:
+          name: integration-test-install-fedora
+          docker_image: fedora:40
+          filters: *filters
+      - integration-test-install:
+          name: integration-test-install-arch
+          docker_image: archlinux:latest
+          filters: *filters
+      - integration-test-install:
+          name: integration-test-install-opensuse
+          docker_image: opensuse/leap:15.6
+          filters: *filters
 
       # -- cp: single-file upload, content-verified end to end -----------------
       - s5cmd-orb/cp:
@@ -467,7 +500,13 @@ workflows:
           enable_pr_comment: true
           requires:
             - orb-tools/pack
-            - integration-test-install-docker-base
+            - integration-test-install-cimg-base
+            - integration-test-install-ubuntu
+            - integration-test-install-debian
+            - integration-test-install-centos
+            - integration-test-install-fedora
+            - integration-test-install-arch
+            - integration-test-install-opensuse
             - integration-test-cp
             - integration-test-cp-numworkers
             - integration-test-cp-serial
@@ -496,6 +535,3 @@ executors:
         environment:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
-  docker-base:
-    docker:
-      - image: cimg/base:stable
