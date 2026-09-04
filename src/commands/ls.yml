@@ -1,0 +1,36 @@
+description: >
+  Lists S3 buckets or objects, using s5cmd. https://github.com/peak/s5cmd#5-examples
+parameters:
+  target:
+    type: string
+    default: ""
+    description: An S3 URI to list (bucket, prefix, or wildcard). Leave empty to list all buckets.
+  arguments:
+    type: string
+    default: ""
+    description: Additional s5cmd ls flags, space-separated (e.g. --humanize --etag).
+  profile_name:
+    type: string
+    default: ""
+    description: AWS profile name to be configured.
+  endpoint_url:
+    type: string
+    default: ""
+    description: Custom S3-compatible endpoint URL (e.g. for MinIO or Cloudflare R2).
+  when:
+    description: |
+      Add the when attribute to a job step to override its default behavior
+      and selectively run or skip steps depending on the status of the job.
+    type: enum
+    enum: ["on_success", "on_fail", "always"]
+    default: "on_success"
+steps:
+  - run:
+      name: s5cmd ls << parameters.target >>
+      when: <<parameters.when>>
+      environment:
+        ORB_EVAL_TARGET: <<parameters.target>>
+        ORB_STR_ARGUMENTS: <<parameters.arguments>>
+        ORB_STR_PROFILE_NAME: <<parameters.profile_name>>
+        ORB_STR_ENDPOINT_URL: <<parameters.endpoint_url>>
+      command: <<include(scripts/ls.sh)>>

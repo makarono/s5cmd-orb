@@ -1,0 +1,35 @@
+description: >
+  Removes one or more S3 objects, using s5cmd. https://github.com/peak/s5cmd#5-examples
+parameters:
+  target:
+    type: string
+    description: An S3 URI or wildcard pattern of object(s) to remove, e.g. s3://bucket/prefix/*
+  arguments:
+    type: string
+    default: ""
+    description: Additional s5cmd rm flags, space-separated (e.g. --all-versions).
+  profile_name:
+    type: string
+    default: ""
+    description: AWS profile name to be configured.
+  endpoint_url:
+    type: string
+    default: ""
+    description: Custom S3-compatible endpoint URL (e.g. for MinIO or Cloudflare R2).
+  when:
+    description: |
+      Add the when attribute to a job step to override its default behavior
+      and selectively run or skip steps depending on the status of the job.
+    type: enum
+    enum: ["on_success", "on_fail", "always"]
+    default: "on_success"
+steps:
+  - run:
+      name: s5cmd rm << parameters.target >>
+      when: <<parameters.when>>
+      environment:
+        ORB_EVAL_TARGET: <<parameters.target>>
+        ORB_STR_ARGUMENTS: <<parameters.arguments>>
+        ORB_STR_PROFILE_NAME: <<parameters.profile_name>>
+        ORB_STR_ENDPOINT_URL: <<parameters.endpoint_url>>
+      command: <<include(scripts/rm.sh)>>

@@ -1,0 +1,46 @@
+description: >
+  Syncs directories and S3 prefixes, using s5cmd. https://github.com/peak/s5cmd#5-examples
+parameters:
+  from:
+    type: string
+    description: A local directory path or S3 prefix to sync from
+  to:
+    type: string
+    description: A local directory path or S3 prefix to sync to
+  arguments:
+    type: string
+    default: ""
+    description: Additional s5cmd sync flags, space-separated (e.g. --delete --acl public-read).
+  profile_name:
+    type: string
+    default: ""
+    description: AWS profile name to be configured.
+  endpoint_url:
+    type: string
+    default: ""
+    description: Custom S3-compatible endpoint URL (e.g. for MinIO or Cloudflare R2).
+  numworkers:
+    type: string
+    default: ""
+    description: >
+      Number of parallel workers s5cmd uses for this operation (global --numworkers flag,
+      applied before the subcommand; s5cmd default is 256).
+  when:
+    description: |
+      Add the when attribute to a job step to override its default behavior
+      and selectively run or skip steps depending on the status of the job.
+    type: enum
+    enum: ["on_success", "on_fail", "always"]
+    default: "on_success"
+steps:
+  - run:
+      name: s5cmd sync << parameters.from >> -> << parameters.to >>
+      when: <<parameters.when>>
+      environment:
+        ORB_EVAL_FROM: <<parameters.from>>
+        ORB_EVAL_TO: <<parameters.to>>
+        ORB_STR_ARGUMENTS: <<parameters.arguments>>
+        ORB_STR_PROFILE_NAME: <<parameters.profile_name>>
+        ORB_STR_ENDPOINT_URL: <<parameters.endpoint_url>>
+        ORB_STR_NUMWORKERS: <<parameters.numworkers>>
+      command: <<include(scripts/sync.sh)>>

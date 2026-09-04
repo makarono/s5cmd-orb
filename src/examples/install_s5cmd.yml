@@ -1,0 +1,20 @@
+description: Easily install s5cmd and use it to interact with S3 in your jobs.
+usage:
+  version: 2.1
+
+  orbs:
+    s5cmd-orb: aduro-orbs/s5cmd-orb@1.0.0
+
+  jobs:
+    s5cmd-example:
+      executor: s5cmd-orb/default
+      steps:
+        - checkout
+        - s5cmd-orb/install
+        - run: echo "Run your code here"
+
+  workflows:
+    s5cmd:
+      jobs:
+        - s5cmd-example:
+            context: aws
