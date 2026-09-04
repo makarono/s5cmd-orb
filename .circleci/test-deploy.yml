@@ -35,6 +35,80 @@ commands:
                 command: |
                   echo "lorem ipsum" > /tmp/test-file.txt
                   aws --endpoint-url http://localhost:9000 s3 cp /tmp/test-file.txt s3://test-bucket/s5cmd-orb/build_asset.txt
+  seed-local-files:
+    description: Create a local directory populated with deterministic, uniquely-named files.
+    parameters:
+      dir:
+        type: string
+      count:
+        type: integer
+        default: 25
+      prefix:
+        type: string
+        default: file
+    steps:
+      - run:
+          name: Seed << parameters.count >> local files in << parameters.dir >>
+          command: |
+            mkdir -p "<< parameters.dir >>"
+            i=1
+            while [ "$i" -le << parameters.count >> ]; do
+              echo "<< parameters.prefix >>-content-$i" > "<< parameters.dir >>/<< parameters.prefix >>-$i.txt"
+              i=$((i + 1))
+            done
+  seed-remote-objects:
+    description: Upload a batch of deterministic, uniquely-named objects directly to Minio via awscli (used to seed cp/sync sources without depending on s5cmd itself).
+    parameters:
+      s3_uri:
+        type: string
+      count:
+        type: integer
+        default: 25
+      prefix:
+        type: string
+        default: obj
+    steps:
+      - run:
+          name: Seed << parameters.count >> objects at << parameters.s3_uri >>
+          command: |
+            TMP_DIR=$(mktemp -d)
+            i=1
+            while [ "$i" -le << parameters.count >> ]; do
+              echo "<< parameters.prefix >>-content-$i" > "$TMP_DIR/<< parameters.prefix >>-$i.txt"
+              i=$((i + 1))
+            done
+            aws --endpoint-url http://localhost:9000 s3 sync "$TMP_DIR" "<< parameters.s3_uri >>"
+  assert-object-absent:
+    description: Fail unless the given S3 key does NOT exist (used to prove deletions happened, or that an operation never touched an object it shouldn't have).
+    parameters:
+      bucket:
+        type: string
+        default: test-bucket
+      key:
+        type: string
+    steps:
+      - run:
+          name: Assert absent << parameters.key >>
+          command: |
+            if aws --endpoint-url http://localhost:9000 s3api head-object --bucket << parameters.bucket >> --key "<< parameters.key >>" 2>/dev/null; then
+              echo "FAIL: expected << parameters.key >> to be absent, but it exists"
+              exit 1
+            fi
+            echo "confirmed absent: << parameters.key >>"
+  assert-object-present:
+    description: Fail unless the given S3 key exists.
+    parameters:
+      bucket:
+        type: string
+        default: test-bucket
+      key:
+        type: string
+    steps:
+      - run:
+          name: Assert present << parameters.key >>
+          command: |
+            aws --endpoint-url http://localhost:9000 s3api head-object --bucket << parameters.bucket >> --key "<< parameters.key >>"
+            echo "confirmed present: << parameters.key >>"
 
 jobs:
   integration-test-install:
@@ -73,6 +147,8 @@ workflows:
             alias: integration-test-install
             parameters:
               executor: [docker-base, macos]
+
+      # -- cp: single-file upload, content-verified end to end -----------------
       - s5cmd-orb/cp:
           name: integration-test-cp
           executor: minio
@@ -86,7 +162,74 @@ workflows:
           from: "/tmp/s5cmd-test-bucket/build_asset.txt"
           to: "s3://test-bucket/s5cmd-orb/build_asset.txt"
           endpoint_url: http://localhost:9000
+          post-steps:
+            - run:
+                name: Verify uploaded object content matches source
+                command: |
+                  aws --endpoint-url http://localhost:9000 s3 cp s3://test-bucket/s5cmd-orb/build_asset.txt /tmp/cp-downloaded.txt
+                  diff /tmp/s5cmd-test-bucket/build_asset.txt /tmp/cp-downloaded.txt
+                  echo "cp upload verified: content matches byte for byte"
           filters: *filters
+
+      # -- cp: parallel (numworkers) vs serial wildcard download, same source --
+      - s5cmd-orb/cp:
+          name: integration-test-cp-numworkers
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket
+            - seed-remote-objects:
+                s3_uri: s3://test-bucket/s5cmd-orb-cp-src/
+                count: 30
+                prefix: obj
+          from: "s3://test-bucket/s5cmd-orb-cp-src/*"
+          to: "/tmp/cp-parallel-down/"
+          numworkers: "16"
+          endpoint_url: http://localhost:9000
+          post-steps:
+            - run:
+                name: Verify parallel cp (numworkers=16) downloaded every object intact
+                command: |
+                  COUNT=$(ls /tmp/cp-parallel-down | wc -l | tr -d ' ')
+                  [ "$COUNT" = "30" ] || { echo "expected 30 files, got $COUNT"; exit 1; }
+                  i=1
+                  while [ "$i" -le 30 ]; do
+                    EXPECTED="obj-content-$i"
+                    ACTUAL=$(cat "/tmp/cp-parallel-down/obj-$i.txt")
+                    [ "$ACTUAL" = "$EXPECTED" ] || { echo "FAIL: obj-$i.txt mismatch: got '$ACTUAL' want '$EXPECTED'"; exit 1; }
+                    i=$((i + 1))
+                  done
+                  echo "confirmed: numworkers=16 cp downloaded all 30 objects intact"
+          filters: *filters
+      - s5cmd-orb/cp:
+          name: integration-test-cp-serial
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket
+            - seed-remote-objects:
+                s3_uri: s3://test-bucket/s5cmd-orb-cp-src/
+                count: 30
+                prefix: obj
+          from: "s3://test-bucket/s5cmd-orb-cp-src/*"
+          to: "/tmp/cp-serial-down/"
+          numworkers: "1"
+          endpoint_url: http://localhost:9000
+          post-steps:
+            - run:
+                name: Verify serial cp (numworkers=1) downloaded every object intact
+                command: |
+                  COUNT=$(ls /tmp/cp-serial-down | wc -l | tr -d ' ')
+                  [ "$COUNT" = "30" ] || { echo "expected 30 files, got $COUNT"; exit 1; }
+                  i=1
+                  while [ "$i" -le 30 ]; do
+                    EXPECTED="obj-content-$i"
+                    ACTUAL=$(cat "/tmp/cp-serial-down/obj-$i.txt")
+                    [ "$ACTUAL" = "$EXPECTED" ] || { echo "FAIL: obj-$i.txt mismatch: got '$ACTUAL' want '$EXPECTED'"; exit 1; }
+                    i=$((i + 1))
+                  done
+                  echo "confirmed: numworkers=1 cp downloaded all 30 objects intact, same result as parallel"
+          filters: *filters
+
+      # -- sync: base upload, content + count verified --------------------------
       - s5cmd-orb/sync:
           name: integration-test-sync
           executor: minio
@@ -100,7 +243,166 @@ workflows:
           from: "/tmp/s5cmd-test-bucket/"
           to: "s3://test-bucket/s5cmd-orb-sync/"
           endpoint_url: http://localhost:9000
+          post-steps:
+            - run:
+                name: Verify sync uploaded exactly the expected object with correct content
+                command: |
+                  COUNT=$(aws --endpoint-url http://localhost:9000 s3 ls s3://test-bucket/s5cmd-orb-sync/ --recursive | wc -l | tr -d ' ')
+                  [ "$COUNT" = "1" ] || { echo "expected 1 object, got $COUNT"; exit 1; }
+                  aws --endpoint-url http://localhost:9000 s3 cp s3://test-bucket/s5cmd-orb-sync/build_asset.txt /tmp/sync-downloaded.txt
+                  diff /tmp/s5cmd-test-bucket/build_asset.txt /tmp/sync-downloaded.txt
+                  echo "sync upload verified"
           filters: *filters
+
+      # -- sync: default (no --delete) must NEVER remove destination-only files -
+      - s5cmd-orb/sync:
+          name: integration-test-sync-no-delete
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket
+            - seed-local-files:
+                dir: /tmp/sync-nodelete-src
+                count: 1
+                prefix: keep
+            - seed-remote-objects:
+                s3_uri: s3://test-bucket/s5cmd-orb-sync-nodelete/
+                count: 1
+                prefix: stale
+          from: "/tmp/sync-nodelete-src/"
+          to: "s3://test-bucket/s5cmd-orb-sync-nodelete/"
+          endpoint_url: http://localhost:9000
+          post-steps:
+            - assert-object-present:
+                key: s5cmd-orb-sync-nodelete/stale-1.txt
+            - assert-object-present:
+                key: s5cmd-orb-sync-nodelete/keep-1.txt
+          filters: *filters
+
+      # -- sync --delete: removes stale destination files, never touches siblings
+      - s5cmd-orb/sync:
+          name: integration-test-sync-delete
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket
+            - seed-local-files:
+                dir: /tmp/sync-delete-src
+                count: 1
+                prefix: keep
+            - seed-remote-objects:
+                s3_uri: s3://test-bucket/s5cmd-orb-sync-delete/
+                count: 1
+                prefix: stale
+            - seed-remote-objects:
+                s3_uri: s3://test-bucket/s5cmd-orb-sync-delete-sibling/
+                count: 1
+                prefix: sentinel
+          from: "/tmp/sync-delete-src/"
+          to: "s3://test-bucket/s5cmd-orb-sync-delete/"
+          arguments: "--delete"
+          endpoint_url: http://localhost:9000
+          post-steps:
+            - assert-object-absent:
+                key: s5cmd-orb-sync-delete/stale-1.txt
+            - assert-object-present:
+                key: s5cmd-orb-sync-delete/keep-1.txt
+            - assert-object-present:
+                key: s5cmd-orb-sync-delete-sibling/sentinel-1.txt
+          filters: *filters
+
+      # -- sync --exclude: matching files never leave the local source ----------
+      - s5cmd-orb/sync:
+          name: integration-test-sync-exclude
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket
+            - run:
+                name: Seed local dir with a kept file and an excluded temp file
+                command: |
+                  mkdir -p /tmp/sync-exclude-src
+                  echo "keep" > /tmp/sync-exclude-src/keep.txt
+                  echo "skip" > /tmp/sync-exclude-src/skip.tmp
+          from: "/tmp/sync-exclude-src/"
+          to: "s3://test-bucket/s5cmd-orb-sync-exclude/"
+          arguments: "--exclude *.tmp"
+          endpoint_url: http://localhost:9000
+          post-steps:
+            - assert-object-present:
+                key: s5cmd-orb-sync-exclude/keep.txt
+            - assert-object-absent:
+                key: s5cmd-orb-sync-exclude/skip.tmp
+          filters: *filters
+
+      # -- sync --include: only matching files are uploaded ---------------------
+      - s5cmd-orb/sync:
+          name: integration-test-sync-include
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket
+            - run:
+                name: Seed local dir with a kept txt file and a non-matching log file
+                command: |
+                  mkdir -p /tmp/sync-include-src
+                  echo "keep" > /tmp/sync-include-src/keep.txt
+                  echo "skip" > /tmp/sync-include-src/skip.log
+          from: "/tmp/sync-include-src/"
+          to: "s3://test-bucket/s5cmd-orb-sync-include/"
+          arguments: "--include *.txt"
+          endpoint_url: http://localhost:9000
+          post-steps:
+            - assert-object-present:
+                key: s5cmd-orb-sync-include/keep.txt
+            - assert-object-absent:
+                key: s5cmd-orb-sync-include/skip.log
+          filters: *filters
+
+      # -- sync: parallel (numworkers) vs serial upload of a larger batch --------
+      - s5cmd-orb/sync:
+          name: integration-test-sync-numworkers
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket
+            - seed-local-files:
+                dir: /tmp/sync-parallel-src
+                count: 30
+                prefix: file
+          from: "/tmp/sync-parallel-src/"
+          to: "s3://test-bucket/s5cmd-orb-sync-parallel/"
+          numworkers: "16"
+          endpoint_url: http://localhost:9000
+          post-steps:
+            - run:
+                name: Verify parallel sync (numworkers=16) uploaded every file intact
+                command: |
+                  COUNT=$(aws --endpoint-url http://localhost:9000 s3 ls s3://test-bucket/s5cmd-orb-sync-parallel/ --recursive | wc -l | tr -d ' ')
+                  [ "$COUNT" = "30" ] || { echo "expected 30 objects, got $COUNT"; exit 1; }
+                  aws --endpoint-url http://localhost:9000 s3 sync s3://test-bucket/s5cmd-orb-sync-parallel/ /tmp/sync-parallel-down/
+                  diff -r /tmp/sync-parallel-src /tmp/sync-parallel-down
+                  echo "confirmed: numworkers=16 sync uploaded all 30 files intact"
+          filters: *filters
+      - s5cmd-orb/sync:
+          name: integration-test-sync-serial
+          executor: minio
+          pre-steps:
+            - setup-minio-bucket
+            - seed-local-files:
+                dir: /tmp/sync-serial-src
+                count: 30
+                prefix: file
+          from: "/tmp/sync-serial-src/"
+          to: "s3://test-bucket/s5cmd-orb-sync-serial/"
+          numworkers: "1"
+          endpoint_url: http://localhost:9000
+          post-steps:
+            - run:
+                name: Verify serial sync (numworkers=1) uploaded every file intact
+                command: |
+                  COUNT=$(aws --endpoint-url http://localhost:9000 s3 ls s3://test-bucket/s5cmd-orb-sync-serial/ --recursive | wc -l | tr -d ' ')
+                  [ "$COUNT" = "30" ] || { echo "expected 30 objects, got $COUNT"; exit 1; }
+                  aws --endpoint-url http://localhost:9000 s3 sync s3://test-bucket/s5cmd-orb-sync-serial/ /tmp/sync-serial-down/
+                  diff -r /tmp/sync-serial-src /tmp/sync-serial-down
+                  echo "confirmed: numworkers=1 sync uploaded all 30 files intact, same result as parallel"
+          filters: *filters
+
       - s5cmd-orb/ls:
           name: integration-test-ls
           executor: minio
@@ -109,7 +411,12 @@ workflows:
                 seed_object: true
           target: "s3://test-bucket/s5cmd-orb/"
           endpoint_url: http://localhost:9000
+          post-steps:
+            - assert-object-present:
+                key: s5cmd-orb/build_asset.txt
           filters: *filters
+
+      # -- mv: source gone, destination present with original content -----------
       - s5cmd-orb/mv:
           name: integration-test-mv
           executor: minio
@@ -119,16 +426,38 @@ workflows:
           from: "s3://test-bucket/s5cmd-orb/build_asset.txt"
           to: "s3://test-bucket/s5cmd-orb/build_asset_moved.txt"
           endpoint_url: http://localhost:9000
+          post-steps:
+            - assert-object-absent:
+                key: s5cmd-orb/build_asset.txt
+            - assert-object-present:
+                key: s5cmd-orb/build_asset_moved.txt
+            - run:
+                name: Verify moved object content is unchanged
+                command: |
+                  aws --endpoint-url http://localhost:9000 s3 cp s3://test-bucket/s5cmd-orb/build_asset_moved.txt /tmp/mv-downloaded.txt
+                  grep -q "lorem ipsum" /tmp/mv-downloaded.txt
           filters: *filters
+
+      # -- rm: removes only the targeted prefix, sibling prefix left intact -----
       - s5cmd-orb/rm:
           name: integration-test-rm
           executor: minio
           pre-steps:
             - setup-minio-bucket:
                 seed_object: true
+            - seed-remote-objects:
+                s3_uri: s3://test-bucket/s5cmd-orb-rm-sibling/
+                count: 1
+                prefix: sentinel
           target: "s3://test-bucket/s5cmd-orb/*"
           endpoint_url: http://localhost:9000
+          post-steps:
+            - assert-object-absent:
+                key: s5cmd-orb/build_asset.txt
+            - assert-object-present:
+                key: s5cmd-orb-rm-sibling/sentinel-1.txt
           filters: *filters
+
       - orb-tools/pack:
           filters: *release-filters
       - orb-tools/publish:
@@ -139,8 +468,16 @@ workflows:
           requires:
             - orb-tools/pack
             - integration-test-install-docker-base
-            - integration-test-sync
             - integration-test-cp
+            - integration-test-cp-numworkers
+            - integration-test-cp-serial
+            - integration-test-sync
+            - integration-test-sync-no-delete
+            - integration-test-sync-delete
+            - integration-test-sync-exclude
+            - integration-test-sync-include
+            - integration-test-sync-numworkers
+            - integration-test-sync-serial
             - integration-test-ls
             - integration-test-mv
             - integration-test-rm

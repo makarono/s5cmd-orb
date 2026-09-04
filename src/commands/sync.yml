@@ -19,6 +19,12 @@ parameters:
     type: string
     default: ""
     description: Custom S3-compatible endpoint URL (e.g. for MinIO or Cloudflare R2).
+  numworkers:
+    type: string
+    default: ""
+    description: >
+      Number of parallel workers s5cmd uses for this operation (global --numworkers flag,
+      applied before the subcommand; s5cmd default is 256).
   when:
     description: |
       Add the when attribute to a job step to override its default behavior
@@ -36,4 +42,5 @@ steps:
         ORB_STR_ARGUMENTS: <<parameters.arguments>>
         ORB_STR_PROFILE_NAME: <<parameters.profile_name>>
         ORB_STR_ENDPOINT_URL: <<parameters.endpoint_url>>
+        ORB_STR_NUMWORKERS: <<parameters.numworkers>>
       command: <<include(scripts/sync.sh)>>

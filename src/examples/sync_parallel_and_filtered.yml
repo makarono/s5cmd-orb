@@ -1,0 +1,52 @@
+description: >
+  Demonstrates s5cmd sync/cp options beyond the basics: parallelism via the "numworkers"
+  parameter, filtering uploads with "--exclude"/"--include", and the destructive "--delete"
+  flag. Without "--delete" (the default), sync only adds and updates objects — it never
+  removes anything from the destination, which is the safe choice for most pipelines.
+usage:
+  version: 2.1
+  orbs:
+    s5cmd-orb: aduro-orbs/s5cmd-orb@1.0.0
+  jobs:
+    build:
+      docker:
+        - image: cimg/base:current
+      steps:
+        - checkout
+        - s5cmd-orb/install
+        # Speed up uploads of many small files by raising the s5cmd worker pool.
+        # "numworkers" is a *global* s5cmd flag applied before the subcommand;
+        # passing "--numworkers" inside "arguments" instead is rejected by s5cmd,
+        # because subcommand flags and global flags are parsed separately.
+        - s5cmd-orb/sync:
+            from: dist/
+            to: "s3://my-s3-bucket-name/prefix/"
+            numworkers: "32"
+        # Skip local build artifacts you never want published, e.g. source maps.
+        - s5cmd-orb/sync:
+            from: dist/
+            to: "s3://my-s3-bucket-name/prefix/"
+            arguments: --exclude *.map --exclude *.tmp
+        # Or take the inverse approach: only publish a specific file type.
+        - s5cmd-orb/sync:
+            from: dist/
+            to: "s3://my-s3-bucket-name/prefix/"
+            arguments: --include *.html
+        # DESTRUCTIVE: removes objects under the destination prefix that no longer
+        # exist in "from". Only the given prefix is affected; sibling prefixes in the
+        # same bucket are left untouched. Omit --delete unless you specifically need
+        # the destination to mirror the source exactly.
+        - s5cmd-orb/sync:
+            from: dist/
+            to: "s3://my-s3-bucket-name/prefix/"
+            arguments: --delete
+        # Parallel download of many objects matched by a wildcard source.
+        - s5cmd-orb/cp:
+            from: "s3://my-s3-bucket-name/prefix/*"
+            to: downloaded/
+            numworkers: "32"
+  workflows:
+    s5cmd-example:
+      jobs:
+        - build:
+            context: AWS_CREDENTIALS

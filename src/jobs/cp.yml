@@ -19,6 +19,11 @@ parameters:
     type: string
     default: ""
     description: Custom S3-compatible endpoint URL.
+  numworkers:
+    type: string
+    default: ""
+    description: >
+      Number of parallel workers s5cmd uses for this operation (global --numworkers flag).
   when:
     description: |
       Add the when attribute to a job step to override its default behavior
@@ -56,3 +61,4 @@ steps:
       arguments: <<parameters.arguments>>
       profile_name: <<parameters.profile_name>>
       endpoint_url: <<parameters.endpoint_url>>
+      numworkers: <<parameters.numworkers>>

@@ -9,6 +9,7 @@ Example use-cases are provided on the orb's registry page once published, and as
 - `static_credentials.yml` - sync/copy using credentials already present in the environment (e.g. a context)
 - `authentication_with_jobs.yml` - use the ready-made `cp`/`sync` jobs with OIDC auth via the `auth` parameter
 - `sync_and_copy_with_oidc.yml` - a custom job authenticating via OIDC, then calling the `sync`/`cp` commands directly
+- `sync_parallel_and_filtered.yml` - tune parallelism with `numworkers`, filter uploads with `--exclude`/`--include`, and use the destructive `--delete` flag safely
 
 ## Resources
 
