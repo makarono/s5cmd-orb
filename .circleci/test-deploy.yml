@@ -146,7 +146,7 @@ workflows:
           matrix:
             alias: integration-test-install
             parameters:
-              executor: [docker-base, macos]
+              executor: [docker-base]
 
       # -- cp: single-file upload, content-verified end to end -----------------
       - s5cmd-orb/cp:
@@ -499,7 +499,3 @@ executors:
   docker-base:
     docker:
       - image: cimg/base:stable
-  macos:
-    macos:
-      xcode: 16.2.0
-    resource_class: m4pro.medium
