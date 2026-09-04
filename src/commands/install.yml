@@ -34,4 +34,5 @@ steps:
             SCRIPT_INSTALL_MACOS: << include(scripts/macos/install.sh) >>
             SCRIPT_INSTALL_DEPENDENCY_MACOS: << include(scripts/macos/deps-install-script.sh) >>
             SCRIPT_UTILS: << include(scripts/utils.sh) >>
+            SCRIPT_DECIDE_INSTALL: << include(scripts/decide_install.sh) >>
           command: <<include(scripts/install.sh)>>

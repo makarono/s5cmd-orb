@@ -19,11 +19,27 @@ fi
 
 # Install per platform
 if [ "$SYS_ENV_PLATFORM" = "linux" ] || [ "$SYS_ENV_PLATFORM" = "linux_alpine" ]; then
-    eval "$SCRIPT_INSTALL_DEPENDENCY_LINUX"
-    eval "$SCRIPT_INSTALL_LINUX"
-
+    # deps-install-script.sh uses bash arrays. Musl-based images like Alpine
+    # ship no bash, and their /bin/sh (ash) cannot "eval" bash-only syntax --
+    # run the whole Linux install flow through an explicit bash process
+    # instead of eval-ing it into whatever shell happens to be interpreting
+    # this file.
+    if [ "$SYS_ENV_PLATFORM" = "linux_alpine" ] && ! command -v bash >/dev/null 2>&1; then
+        apk add --no-cache bash
+    fi
+    LINUX_INSTALL_SCRIPT="$(mktemp)"
+    trap 'rm -f "$LINUX_INSTALL_SCRIPT"' EXIT
+    {
+        printf '%s\n' "$SCRIPT_UTILS"
+        printf '%s\n' "$SCRIPT_INSTALL_DEPENDENCY_LINUX"
+        printf '%s\n' "$SCRIPT_INSTALL_LINUX"
+        printf '%s\n' "$SCRIPT_DECIDE_INSTALL"
+    } > "$LINUX_INSTALL_SCRIPT"
+    bash "$LINUX_INSTALL_SCRIPT"
+    exit $?
 elif [ "$SYS_ENV_PLATFORM" = "windows" ]; then
     echo "This orb does not currently support your platform."
+    exit 1
 elif [ "$SYS_ENV_PLATFORM" = "macos" ]; then
     eval "$SCRIPT_INSTALL_DEPENDENCY_MACOS"
     eval "$SCRIPT_INSTALL_MACOS"
@@ -32,18 +48,4 @@ else
     exit 1
 fi
 
-
-if ! command -v s5cmd >/dev/null 2>&1; then
-    install_dependencies
-    Install_S5CMD_CLI "${S5CMD_STR_S5CMD_VERSION}"
-elif s5cmd version | grep "${S5CMD_STR_S5CMD_VERSION}"; then
-    echo "s5cmd CLI version ${S5CMD_STR_S5CMD_VERSION} already installed. Skipping installation"
-    exit 0
-elif is_true "$S5CMD_BOOL_OVERRIDE"; then
-    Uninstall_S5CMD_CLI
-    install_dependencies
-    Install_S5CMD_CLI "${S5CMD_STR_S5CMD_VERSION}"
-else
-    echo "s5cmd CLI is already installed, skipping installation."
-    s5cmd version
-fi
+eval "$SCRIPT_DECIDE_INSTALL"

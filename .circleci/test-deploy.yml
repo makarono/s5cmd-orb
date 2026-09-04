@@ -180,6 +180,10 @@ workflows:
           name: integration-test-install-opensuse
           docker_image: opensuse/leap:15.6
           filters: *filters
+      - integration-test-install:
+          name: integration-test-install-alpine
+          docker_image: alpine:3.20
+          filters: *filters
 
       # -- cp: single-file upload, content-verified end to end -----------------
       - s5cmd-orb/cp:
@@ -507,6 +511,7 @@ workflows:
             - integration-test-install-fedora
             - integration-test-install-arch
             - integration-test-install-opensuse
+            - integration-test-install-alpine
             - integration-test-cp
             - integration-test-cp-numworkers
             - integration-test-cp-serial

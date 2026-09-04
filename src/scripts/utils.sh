@@ -30,10 +30,10 @@ detect_os() {
 }
 
 set_sudo() {
-  if [ "$SYS_ENV_PLATFORM" = "linux_alpine" ]; then
-    if [ "$ID" = 0 ]; then export SUDO=""; else export SUDO="sudo"; fi
+  if [ "$(id -u)" = "0" ]; then
+    export SUDO=""
   else
-    if [ "$EUID" = 0 ]; then export SUDO=""; else export SUDO="sudo"; fi
+    export SUDO="sudo"
   fi
 }
 
